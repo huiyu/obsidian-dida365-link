@@ -1,23 +1,31 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, ToggleComponent } from 'obsidian';
 import { DidaClient, DidaSession } from './dida365'
+import EditorContext from './editor-context'
 
 interface Dida365LinkPluginSettings {
 	username: string;
 	password: string;
 	token: string;
 	enableInputPrompt: boolean;
-	enableDida365Link: boolean;
-	enableLineToDida365Link: boolean;
+	defaultProjectForTasks: string;
+	enableDidaLink: boolean;
+	enableFrontMatterToDidaProjectLink: boolean;
+	enableSelectionToDidaTaskLink: boolean;
+	enableLineToDidaTaskLink: boolean;
+	enableFrontMatterToDidaTaskLink: boolean;
 }
 
 const DEFAULT_SETTINGS: Dida365LinkPluginSettings = {
-	username: 'default',
-	password: 'default',
+	username: 'username',
+	password: 'password',
 	token: '',
 	enableInputPrompt: false,
-	enableDida365Link: false,
-	enableLineToDida365Link: false,
-
+	defaultProjectForTasks: "Inbox",
+	enableDidaLink: false,
+	enableFrontMatterToDidaProjectLink: false,
+	enableSelectionToDidaTaskLink: false,
+	enableLineToDidaTaskLink: false,
+	enableFrontMatterToDidaTaskLink: false,
 }
 
 export default class Dida365LinkPlugin extends Plugin {
@@ -30,12 +38,17 @@ export default class Dida365LinkPlugin extends Plugin {
 			id: "dida365-create-project",
 			name: "Create project",
 			editorCallback: async (editor: Editor, _) => {
-				const editorSupport = new EditorSupport(editor, this.app)
-				const didaClient = await DidaClient.of(new PluginDidaSession(this))
-				const title = editorSupport.getActiveFile().basename
-				await didaClient.createProject({
-					title: title,
+				const ctx = new EditorContext(editor)
+				const client = await DidaClient.of(new PluginDidaSession(this))
+
+				const title = ctx.getCurrentFile().basename
+				const project = await client.createProject({
+					title: title
 				})
+
+				if (this.settings.enableDidaLink && this.settings.enableFrontMatterToDidaProjectLink) {
+					await ctx.addFrontmatterProperty("dida-project", project.link)
+				}
 
 				new Notice(`Project "${title}" created`)
 			}
@@ -45,19 +58,49 @@ export default class Dida365LinkPlugin extends Plugin {
 			id: "dida365-create-task",
 			name: "Create task",
 			editorCallback: async (editor: Editor, _) => {
-				const editorSupport = new EditorSupport(editor, this.app)
-				const didaClient = await DidaClient.of(new PluginDidaSession(this))
 
-				const name = editorSupport.resolveContextText()
-				const link = editorSupport.getObsidianUrl()
-				const title = `[${name}](${link})`
+				const ctx = new EditorContext(editor)
+				const client = await DidaClient.of(new PluginDidaSession(this))
 
-				await didaClient.createTask({
-					title: title,
+				const file = ctx.getCurrentFile()
+				const line = ctx.getCurrentLine().stripPrefixSymbols()
+				const selection = ctx.getSelection()
+
+				console.log(selection, line, file)
+
+				const title = (() => {
+					if (!selection.isEmpty()) {
+						return selection.text
+					} else if (!line.isEmpty()) {
+						return line.text
+					} else {
+						return file.basename
+					}
+
+				})()
+
+				const url = this.app.getObsidianUrl(file)
+
+
+				const task = await client.createTask({
+					title: `[${title}](${url})`,
 					tags: ["obsidian"],
 				})
 
-				new Notice(`Task "${name}" created`)
+				if (this.settings.enableDidaLink) {
+					if (this.settings.enableSelectionToDidaTaskLink && !selection.isEmpty()) {
+						selection.addLink(task.link)
+					} else if (this.settings.enableLineToDidaTaskLink && !line.isEmpty()) {
+						line.addLink(task.link)
+					} else if (this.settings.enableFrontMatterToDidaTaskLink) {
+						ctx.addFrontmatterProperty("dida-task", task.link)
+					} else {
+						const text = `[dida-task](${task.link})`
+						ctx.insertTextAtCursor(text)
+					}
+				}
+
+				new Notice(`Task "${title}" created`)
 			}
 		})
 
@@ -79,6 +122,20 @@ export default class Dida365LinkPlugin extends Plugin {
 				// TODO: 
 
 				new Notice("Not implemented yet")
+			}
+		})
+
+
+		this.addCommand({
+			id: "dida365-copy-file-url",
+			name: "Copy file URL",
+			editorCallback: (editor: Editor, _) => {
+				const ctx = new EditorContext(editor)
+				const file = ctx.getCurrentFile()
+				const url = this.app.getObsidianUrl(file)
+
+				this.app.clipboard.writeText(url)
+				new Notice("URL copied to clipboard")
 			}
 		})
 
@@ -150,25 +207,66 @@ class Dida365PluginSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('Enable Dida365 link')
-			.setDesc('If enabled, the plugin will transform the selected text to a link to Dida365 or insert a "todo" link of Dida365 at the cursor position if not text selected.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.enableDida365Link)
+			.setName('Default project for tasks')
+			.setDesc('The default project to create tasks in.')
+			.addText(text => text
+				.setValue(this.plugin.settings.defaultProjectForTasks)
 				.onChange(async (value) => {
-					this.plugin.settings.enableDida365Link = value;
+					this.plugin.settings.defaultProjectForTasks = value;
+					await this.plugin.saveSettings();
+				}));
+
+
+		new Setting(containerEl)
+			.setName('Enable Dida365 link')
+			.setDesc('If enabled, the plugin will attempt to create a link to Dida365 depends on the settings specified below.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.enableDidaLink)
+				.onChange(async (value) => {
+					this.plugin.settings.enableDidaLink = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName("Add Dida365 project link to frontmatter")
+			.setDesc("If enabled, the plugin will add a link to the Dida365 project in the frontmatter of the note.")
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.enableFrontMatterToDidaProjectLink)
+				.onChange(async (value) => {
+					this.plugin.settings.enableFrontMatterToDidaProjectLink = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Enable selection to Dida365 task link')
+			.setDesc('If enabled, the plugin will trasform current selection to a link to Dida365 task.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.enableSelectionToDidaTaskLink)
+				.onChange(async (value) => {
+					this.plugin.settings.enableSelectionToDidaTaskLink = value;
 					await this.plugin.saveSettings();
 				}));
 
 		new Setting(containerEl)
 			.setName('Enable transform line to Dida365 link')
-			.setDesc('If enabled, the plugin transforms the complete line to a link to Dida365.')
+			.setDesc('If enabled, the plugin transforms the complete line to a link to Dida365 task.')
 			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.enableLineToDida365Link)
+				.setValue(this.plugin.settings.enableLineToDidaTaskLink)
 				.onChange(async (value) => {
-					this.plugin.settings.enableLineToDida365Link = value;
+					this.plugin.settings.enableLineToDidaTaskLink = value;
 					await this.plugin.saveSettings();
 				}));
 
+
+		new Setting(containerEl)
+			.setName("Add Dida365 task link to frontmatter")
+			.setDesc("If enabled, the plugin will add a link to the Dida365 task in the frontmatter of the note.")
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.enableFrontMatterToDidaTaskLink)
+				.onChange(async (value) => {
+					this.plugin.settings.enableFrontMatterToDidaTaskLink = value;
+					await this.plugin.saveSettings();
+				}));
 	}
 }
 
@@ -191,58 +289,6 @@ class PluginDidaSession implements DidaSession {
 		this.plugin.settings.username = this.username
 		this.plugin.settings.password = this.password
 		await this.plugin.saveSettings()
-	}
-}
-
-
-class EditorSupport {
-	editor: Editor;
-	app: App;
-
-	constructor(editor: Editor, app: App) {
-		this.editor = editor;
-		this.app = app;
-	}
-
-	resolveContextText(): string {
-		const activeFile = this.getActiveFile();
-		const selection = this.editor.getSelection();
-		const cursorLine = this.editor.getCursor().line;
-		if (selection) {
-			return this.editor.getSelection();
-		} else if (cursorLine && this.editor.getLine(cursorLine).trim() != "") {
-			return this.editor.getLine(cursorLine);
-		} else {
-			return activeFile.basename;
-		}
-	}
-
-	getActiveFile() {
-		const activeFile = this.app.workspace.getActiveFile();
-		if (!activeFile) {
-			const errMsg = "Please select a file first";
-			new Notice(errMsg);
-			throw new Error(errMsg);
-		}
-		return activeFile;
-
-	}
-
-	getSelection() {
-		return this.editor.getSelection();
-	}
-
-	getCursorLine() {
-		return this.editor.getCursor().line;
-	}
-
-	getLine(line: number) {
-		return this.editor.getLine(line);
-	}
-
-	getObsidianUrl(): string {
-		const activeFile = this.getActiveFile();
-		return this.app.getObsidianUrl(activeFile)
 	}
 }
 
