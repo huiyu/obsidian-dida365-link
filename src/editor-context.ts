@@ -15,9 +15,16 @@ class EditorText {
 		this.editor = editor;
 	}
 
+	// Remove Markdown symbols from the beginging of `text`
+	// Supported symbols include heading (#), unordered list (-, *, +), and task list (- [ ], - [x]) symbols.
 	stripPrefixSymbols(): EditorText {
-		// TODO:
-		return this;
+		// Use a regular expression to match and remove Markdown symbols at the beginning of the line
+		// Regular expression explanation:
+		//   ^[\s]* matches any whitespace characters at the beginning of the line
+		//   (?:\#{1,6}\s|[-*+]\s|\[-\]\s|\[-x\]\s)? optionally matches Markdown symbols: #, -, *, +, - [ ], - [x] (case insensitive)
+		const text = this.text.replace(/^[\s]*(?:\#{1,6}\s|[-*+]\s|\[-\]\s|\[-x\]\s)?/, '');
+		const position = { line: this.position.line, ch: this.position.ch + (this.text.length - text.length) };
+		return new EditorText(this.file, text, position, this.editor);
 	}
 
 	isEmpty(): boolean {
