@@ -141,6 +141,53 @@ class DidaClient {
 		}
 	}
 
+	async updateTask(task: { id: string, title: string, tags: string[], content: string, projectId: string }) {
+		const req = {
+			update: [{
+				id: task.id,
+				content: task.content,
+				title: task.title,
+				tags: task.tags,
+				projectId: task.projectId,
+			}]
+		}
+
+		const resp = await this.retryRequestUrl({
+			url: "https://api.dida365.com/api/v2/batch/task",
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"x-device": HEADER_X_DEVICE,
+				"cookie": "t=" + this.session.token,
+			},
+			body: JSON.stringify(req)
+		})
+
+		return task;
+	}
+
+
+	async searchTasks(keyword: string) {
+		const resp = await this.retryRequestUrl({
+			url: `https://api.dida365.com/api/v2/search/task?keywords=${keyword}&status=0`,
+			method: "GET",
+			headers: {
+				"Content-Type": "application/json",
+				"x-device": HEADER_X_DEVICE,
+				"cookie": "t=" + this.session.token,
+			}
+		})
+
+		return resp.json.map((item): { id: string; title: string; content: string; tags: string[]; projectId: string, link: string; } => ({
+			id: item.id,
+			title: item.title,
+			content: item.content,
+			tags: item.tags,
+			projectId: item.projectId,
+			link: this.getTaskUrl({ taskId: item.id, projectId: item.projectId }),
+		}))
+	}
+
 
 	private getTaskUrl(task: { taskId: string, projectId?: string }) {
 		if (util.isBlankString(task.projectId)) {

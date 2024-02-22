@@ -103,4 +103,4 @@ class EditorContext {
 }
 
 
-export default EditorContext;
+export { EditorText, EditorContext }

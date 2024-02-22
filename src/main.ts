@@ -1,6 +1,7 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, ToggleComponent } from 'obsidian';
 import { DidaClient, DidaSession } from './dida365'
-import EditorContext from './editor-context'
+import { EditorContext, EditorText } from './editor-support'
+import { queryPromot } from './prompt'
 
 interface Dida365LinkPluginSettings {
 	username: string;
@@ -66,8 +67,6 @@ export default class Dida365LinkPlugin extends Plugin {
 				const line = ctx.getCurrentLine().stripPrefixSymbols()
 				const selection = ctx.getSelection()
 
-				console.log(selection, line, file)
-
 				const title = (() => {
 					if (!selection.isEmpty()) {
 						return selection.text
@@ -88,16 +87,7 @@ export default class Dida365LinkPlugin extends Plugin {
 				})
 
 				if (this.settings.enableDidaLink) {
-					if (this.settings.enableSelectionToDidaTaskLink && !selection.isEmpty()) {
-						selection.addLink(task.link)
-					} else if (this.settings.enableLineToDidaTaskLink && !line.isEmpty()) {
-						line.addLink(task.link)
-					} else if (this.settings.enableFrontMatterToDidaTaskLink) {
-						ctx.addFrontmatterProperty("dida-task", task.link)
-					} else {
-						const text = `[dida-task](${task.link})`
-						ctx.insertTextAtCursor(text)
-					}
+					this.createTaskLink(selection, task, line, ctx);
 				}
 
 				new Notice(`Task "${title}" created`)
@@ -118,31 +108,53 @@ export default class Dida365LinkPlugin extends Plugin {
 		this.addCommand({
 			id: "dida365-link-task",
 			name: "Link task",
-			editorCallback: (editor: Editor, _) => {
-				// TODO: 
+			editorCallback: async (editor: Editor, _) => {
 
-				new Notice("Not implemented yet")
-			}
-		})
-
-
-		this.addCommand({
-			id: "dida365-copy-file-url",
-			name: "Copy file URL",
-			editorCallback: (editor: Editor, _) => {
 				const ctx = new EditorContext(editor)
-				const file = ctx.getCurrentFile()
-				const url = this.app.getObsidianUrl(file)
+				const didaClient = await DidaClient.of(new PluginDidaSession(this))
 
-				this.app.clipboard.writeText(url)
-				new Notice("URL copied to clipboard")
+				const task = await queryPromot(this.app, (query) => {
+					return didaClient.searchTasks(query)
+				})
+
+				// update tags
+				if (task.tags === undefined) {
+					task.tags = ["obsidian"]
+				} else if (task.tags.includes("obsidian") === false) {
+					task.tags.push("obsidian")
+				}
+
+				// append link to the task content
+				const url = this.app.getObsidianUrl(ctx.getCurrentFile())
+				task.content = `[Obsidian](${url})\n${task.content}`
+				await didaClient.updateTask(task)
+
+				if (this.settings.enableDidaLink) {
+					this.createTaskLink(task, ctx.getSelection(), ctx.getCurrentLine(), ctx)
+				}
+
+				new Notice(`Task "${task.title}" linked`)
 			}
 		})
+
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new Dida365PluginSettingTab(this.app, this));
 	}
 
+
+	private createTaskLink(task, selection: EditorText, line: EditorText, ctx: EditorContext) {
+		if (this.settings.enableSelectionToDidaTaskLink && !selection.isEmpty()) {
+			selection.addLink(task.link);
+		} else if (this.settings.enableLineToDidaTaskLink && !line.isEmpty()) {
+			line.addLink(task.link);
+		} else if (this.settings.enableFrontMatterToDidaTaskLink) {
+			ctx.addFrontmatterProperty("dida-task", task.link);
+		} else {
+			const text = `[dida-task](${task.link})`;
+			ctx.insertTextAtCursor(text);
+		}
+	}
 
 	onunload() {
 	}
