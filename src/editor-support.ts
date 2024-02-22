@@ -57,7 +57,7 @@ class EditorContext {
 	editor: Editor;
 	app: App;
 
-	constructor(editor: Editor) {
+	private constructor(editor: Editor) {
 		this.editor = editor;
 		this.app = editor.editorComponent.app;
 	}

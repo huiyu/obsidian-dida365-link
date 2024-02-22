@@ -39,7 +39,7 @@ export default class Dida365LinkPlugin extends Plugin {
 			id: "dida365-create-project",
 			name: "Create project",
 			editorCallback: async (editor: Editor, _) => {
-				const ctx = new EditorContext(editor)
+				const ctx = EditorContext.of(editor)
 				const client = await DidaClient.of(new PluginDidaSession(this))
 
 				const title = ctx.getCurrentFile().basename
@@ -47,8 +47,8 @@ export default class Dida365LinkPlugin extends Plugin {
 					title: title
 				})
 
-				if (this.settings.enableDidaLink && this.settings.enableFrontMatterToDidaProjectLink) {
-					await ctx.addFrontmatterProperty("dida-project", project.link)
+				if (this.settings.enableDidaLink) {
+					this.createProjectLink(project.link, ctx)
 				}
 
 				new Notice(`Project "${title}" created`)
@@ -60,7 +60,7 @@ export default class Dida365LinkPlugin extends Plugin {
 			name: "Create task",
 			editorCallback: async (editor: Editor, _) => {
 
-				const ctx = new EditorContext(editor)
+				const ctx = EditorContext.of(editor)
 				const client = await DidaClient.of(new PluginDidaSession(this))
 
 				const file = ctx.getCurrentFile()
@@ -80,14 +80,13 @@ export default class Dida365LinkPlugin extends Plugin {
 
 				const url = this.app.getObsidianUrl(file)
 
-
 				const task = await client.createTask({
 					title: `[${title}](${url})`,
 					tags: ["obsidian"],
 				})
 
 				if (this.settings.enableDidaLink) {
-					this.createTaskLink(selection, task, line, ctx);
+					await this.createTaskLink(task.link, selection, line, ctx);
 				}
 
 				new Notice(`Task "${title}" created`)
@@ -97,10 +96,23 @@ export default class Dida365LinkPlugin extends Plugin {
 		this.addCommand({
 			id: "dida365-link-project",
 			name: "Link project",
-			editorCallback: (editor: Editor, _) => {
-				// TODO: 
+			editorCallback: async (editor: Editor, _) => {
+				const ctx = EditorContext.of(editor)
 
-				new Notice("Not implemented yet")
+				const didaClient = await DidaClient.of(new PluginDidaSession(this))
+
+				const allProjects = await didaClient.listProjects()
+
+				const project: { id: string, title: string, link: string } =
+					await queryPromot(this.app, (query) => {
+						return allProjects.filter(p => p.title.includes(query))
+					})
+
+				if (this.settings.enableDidaLink) {
+					this.createProjectLink(project.link, ctx)
+				}
+
+				new Notice(`Project "${project.title}" linked`)
 			}
 		})
 
@@ -110,12 +122,11 @@ export default class Dida365LinkPlugin extends Plugin {
 			name: "Link task",
 			editorCallback: async (editor: Editor, _) => {
 
-				const ctx = new EditorContext(editor)
+				const ctx = EditorContext.of(editor)
 				const didaClient = await DidaClient.of(new PluginDidaSession(this))
 
-				const task = await queryPromot(this.app, (query) => {
-					return didaClient.searchTasks(query)
-				})
+				const task: { id: string, title: string, tags: string[], content: string, projectId: string, link: string }
+					= await queryPromot(this.app, (query) => { return didaClient.searchTasks(query) })
 
 				// update tags
 				if (task.tags === undefined) {
@@ -130,7 +141,7 @@ export default class Dida365LinkPlugin extends Plugin {
 				await didaClient.updateTask(task)
 
 				if (this.settings.enableDidaLink) {
-					this.createTaskLink(task, ctx.getSelection(), ctx.getCurrentLine(), ctx)
+					await this.createTaskLink(task.link, ctx.getSelection(), ctx.getCurrentLine(), ctx)
 				}
 
 				new Notice(`Task "${task.title}" linked`)
@@ -143,16 +154,22 @@ export default class Dida365LinkPlugin extends Plugin {
 	}
 
 
-	private createTaskLink(task, selection: EditorText, line: EditorText, ctx: EditorContext) {
+	private async createTaskLink(taskLink: string, selection: EditorText, line: EditorText, ctx: EditorContext) {
 		if (this.settings.enableSelectionToDidaTaskLink && !selection.isEmpty()) {
-			selection.addLink(task.link);
+			selection.addLink(taskLink);
 		} else if (this.settings.enableLineToDidaTaskLink && !line.isEmpty()) {
-			line.addLink(task.link);
+			line.addLink(taskLink);
 		} else if (this.settings.enableFrontMatterToDidaTaskLink) {
-			ctx.addFrontmatterProperty("dida-task", task.link);
+			await ctx.addFrontmatterProperty("dida-task", taskLink);
 		} else {
-			const text = `[dida-task](${task.link})`;
+			const text = `[dida-task](${taskLink})`;
 			ctx.insertTextAtCursor(text);
+		}
+	}
+
+	private async createProjectLink(projectLink: string, ctx: EditorContext) {
+		if (this.settings.enableFrontMatterToDidaProjectLink) {
+			await ctx.addFrontmatterProperty("dida-project", projectLink)
 		}
 	}
 

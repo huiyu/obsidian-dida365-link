@@ -103,7 +103,7 @@ class DidaClient {
 			}
 		})
 
-		return resp.json.map(item => ({ id: item.id, name: item.name }))
+		return resp.json.map(item => ({ id: item.id, title: item.name, link: `https://dida365.com/webapp/#p/${item.id}/tasks` }))
 	}
 
 	async createTask(task: { title: string, tags: string[], content?: string, projectId?: string }) {
