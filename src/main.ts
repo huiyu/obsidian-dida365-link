@@ -229,7 +229,7 @@ class Dida365PluginSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Enable input prompt")
-			.setDesc("If enabled, the plugin will prompt you for input when creating a task (depend on quickadd plugin).")
+			.setDesc("If enabled, the plugin will prompt you for input when creating a project/task.")
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.enableInputPrompt)
 				.onChange(async (value) => {
@@ -258,7 +258,7 @@ class Dida365PluginSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('Enable selection to Dida365 task link')
+			.setName('Enable transform selection to Dida365 task link')
 			.setDesc('If enabled, the plugin will trasform current selection to a link to Dida365 task.')
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.enableSelectionToDidaTaskLink)
