@@ -116,6 +116,8 @@ class DidaClient {
 			}]
 		}
 
+		console.log(task)
+
 		const resp = await this.retryRequestUrl({
 			url: "https://api.dida365.com/api/v2/batch/task",
 			method: "POST",
@@ -152,7 +154,7 @@ class DidaClient {
 			}]
 		}
 
-		const resp = await this.retryRequestUrl({
+		await this.retryRequestUrl({
 			url: "https://api.dida365.com/api/v2/batch/task",
 			method: "POST",
 			headers: {

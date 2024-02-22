@@ -1,14 +1,13 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, ToggleComponent } from 'obsidian';
 import { DidaClient, DidaSession } from './dida365'
 import { EditorContext, EditorText } from './editor-support'
-import { queryPromot } from './prompt'
+import { queryPromot, formPrompt, inputPrompt } from './prompt'
 
 interface Dida365LinkPluginSettings {
 	username: string;
 	password: string;
 	token: string;
 	enableInputPrompt: boolean;
-	defaultProjectForTasks: string;
 	enableDidaLink: boolean;
 	enableFrontMatterToDidaProjectLink: boolean;
 	enableSelectionToDidaTaskLink: boolean;
@@ -21,7 +20,6 @@ const DEFAULT_SETTINGS: Dida365LinkPluginSettings = {
 	password: 'password',
 	token: '',
 	enableInputPrompt: false,
-	defaultProjectForTasks: "Inbox",
 	enableDidaLink: false,
 	enableFrontMatterToDidaProjectLink: false,
 	enableSelectionToDidaTaskLink: false,
@@ -43,15 +41,16 @@ export default class Dida365LinkPlugin extends Plugin {
 				const client = await DidaClient.of(new PluginDidaSession(this))
 
 				const title = ctx.getCurrentFile().basename
+
 				const project = await client.createProject({
-					title: title
+					title: this.settings.enableInputPrompt ? await inputPrompt(this.app, "Create project", title) : title
 				})
 
 				if (this.settings.enableDidaLink) {
-					this.createProjectLink(project.link, ctx)
+					await this.createProjectLink(project.link, ctx)
 				}
 
-				new Notice(`Project "${title}" created`)
+				new Notice(`Project "${project.title}" created`)
 			}
 		});
 
@@ -80,16 +79,19 @@ export default class Dida365LinkPlugin extends Plugin {
 
 				const url = this.app.getObsidianUrl(file)
 
+				const enableInputPrompt = this.settings.enableInputPrompt
+
 				const task = await client.createTask({
-					title: `[${title}](${url})`,
-					tags: ["obsidian"],
+					title: enableInputPrompt ? await inputPrompt(this.app, "Task Name", title) : title,
+					content: `[Obsidian](${url})`,
+					tags: ["Obsidian"],
 				})
 
 				if (this.settings.enableDidaLink) {
 					await this.createTaskLink(task.link, selection, line, ctx);
 				}
 
-				new Notice(`Task "${title}" created`)
+				new Notice(`Task "${task.title}" created`)
 			}
 		})
 
@@ -109,7 +111,7 @@ export default class Dida365LinkPlugin extends Plugin {
 					})
 
 				if (this.settings.enableDidaLink) {
-					this.createProjectLink(project.link, ctx)
+					await this.createProjectLink(project.link, ctx)
 				}
 
 				new Notice(`Project "${project.title}" linked`)
@@ -130,9 +132,9 @@ export default class Dida365LinkPlugin extends Plugin {
 
 				// update tags
 				if (task.tags === undefined) {
-					task.tags = ["obsidian"]
-				} else if (task.tags.includes("obsidian") === false) {
-					task.tags.push("obsidian")
+					task.tags = ["Obsidian"]
+				} else if (task.tags.includes("Obsidian") === false) {
+					task.tags.push("Obsidian")
 				}
 
 				// append link to the task content
@@ -203,7 +205,7 @@ class Dida365PluginSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Username')
-			.setDesc('Username')
+			.setDesc('Email or Phone Number')
 			.addText(text => text
 				.setPlaceholder('Email or Phone Number')
 				.setValue(this.plugin.settings.username)
@@ -234,17 +236,6 @@ class Dida365PluginSettingTab extends PluginSettingTab {
 					this.plugin.settings.enableInputPrompt = value;
 					await this.plugin.saveSettings();
 				}));
-
-		new Setting(containerEl)
-			.setName('Default project for tasks')
-			.setDesc('The default project to create tasks in.')
-			.addText(text => text
-				.setValue(this.plugin.settings.defaultProjectForTasks)
-				.onChange(async (value) => {
-					this.plugin.settings.defaultProjectForTasks = value;
-					await this.plugin.saveSettings();
-				}));
-
 
 		new Setting(containerEl)
 			.setName('Enable Dida365 link')
