@@ -59,32 +59,34 @@ class EditorContext {
 
 	private constructor(editor: Editor) {
 		this.editor = editor;
-		this.app = editor.editorComponent.app;
+		this.app = (<any>editor).editorComponent.app;
 	}
 
 	public static of(Editor: Editor): EditorContext {
 		return new EditorContext(Editor);
 	}
 
-	getCurrentFile(): TFile {
+
+	getFile(): TFile & { url: string } {
 		const activeFile = this.app.workspace.getActiveFile();
 		if (!activeFile) {
 			const errMsg = "Please select a file first";
 			new Notice(errMsg);
 			throw new Error(errMsg);
 		}
-		return activeFile;
+		const url = (<any>this.app).getObsidianUrl(activeFile);
+		return { ...activeFile, ... { url: url } };
 	}
 
 	getSelection(): EditorText {
 		const selection = this.editor.getSelection();
-		return new EditorText(this.getCurrentFile(), selection, this.editor.getCursor("from"), this.editor);
+		return new EditorText(this.getFile(), selection, this.editor.getCursor("from"), this.editor);
 	}
 
 	getCurrentLine(): EditorText {
 		const cursor = this.editor.getCursor();
 		const line = this.editor.getLine(cursor.line);
-		return new EditorText(this.getCurrentFile(), line, { line: cursor.line, ch: 0 }, this.editor);
+		return new EditorText(this.getFile(), line, { line: cursor.line, ch: 0 }, this.editor);
 	}
 
 	insertTextAtCursor(text: string) {
@@ -92,13 +94,14 @@ class EditorContext {
 	}
 
 	async addFrontmatterProperty(key: string, value: string) {
-		if (!this.app.plugins.plugins["metaedit"]) {
+		const app: any = this.app
+		if (!app.plugins.plugins["metaedit"]) {
 			throw new Error("Please install the 'MetaEdit' plugin to use this feature")
 		}
 
-		const { createYamlProperty } = this.app.plugins.plugins["metaedit"].api;
+		const { createYamlProperty } = app.plugins.plugins["metaedit"].api;
 
-		await createYamlProperty(key, value, this.getCurrentFile())
+		await createYamlProperty(key, value, this.getFile())
 	}
 }
 

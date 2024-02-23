@@ -1,9 +1,9 @@
-import { requestUrl, RequestUrlParam, RequestUrlResponsePromise } from 'obsidian'
+import { requestUrl, RequestUrlParam, RequestUrlResponse } from 'obsidian'
 import * as util from './util'
 
 const HEADER_X_DEVICE = '{"platform":"web","os":"macOS 10.15.7","device":"Chrome 114.0.0.0","name":"","version":4562,"id":"64217d45c3630d2326189adc","channel":"website","campaign":"","websocket":""}'
 
-interface DidaSession {
+export interface DidaSession {
 	username: string;
 	password: string;
 	token: string;
@@ -12,7 +12,7 @@ interface DidaSession {
 	save(): Promise<void>;
 }
 
-class DidaClient {
+export class DidaClient {
 
 	session: DidaSession
 
@@ -103,7 +103,7 @@ class DidaClient {
 			}
 		})
 
-		return resp.json.map(item => ({ id: item.id, title: item.name, link: `https://dida365.com/webapp/#p/${item.id}/tasks` }))
+		return resp.json.map((item: { id: string, name: string }) => ({ id: item.id, title: item.name, link: `https://dida365.com/webapp/#p/${item.id}/tasks` }))
 	}
 
 	async createTask(task: { title: string, tags: string[], content?: string, projectId?: string }) {
@@ -180,7 +180,8 @@ class DidaClient {
 			}
 		})
 
-		return resp.json.map((item): { id: string; title: string; content: string; tags: string[]; projectId: string, link: string; } => ({
+		return resp.json.map((item: { id: string; title: string; content: string; tags: string[]; projectId: string, link: string; }) =>
+		({
 			id: item.id,
 			title: item.title,
 			content: item.content,
@@ -200,7 +201,7 @@ class DidaClient {
 	}
 
 	// retry request after login
-	private async retryRequestUrl(requestParam: RequestUrlParam): RequestUrlResponsePromise {
+	private async retryRequestUrl(requestParam: RequestUrlParam): Promise<RequestUrlResponse> {
 		try {
 			return await requestUrl(requestParam)
 		} catch (e) {
@@ -211,4 +212,3 @@ class DidaClient {
 	}
 }
 
-export { DidaClient, DidaSession }

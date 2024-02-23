@@ -1,7 +1,7 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, ToggleComponent } from 'obsidian';
 import { DidaClient, DidaSession } from './dida365'
 import { EditorContext, EditorText } from './editor-support'
-import { queryPromot, formPrompt, inputPrompt } from './prompt'
+import { queryPromot, inputPrompt } from './prompt'
 
 interface Dida365LinkPluginSettings {
 	username: string;
@@ -40,7 +40,7 @@ export default class Dida365LinkPlugin extends Plugin {
 				const ctx = EditorContext.of(editor)
 				const client = await DidaClient.of(new PluginDidaSession(this))
 
-				const title = ctx.getCurrentFile().basename
+				const title = ctx.getFile().basename
 
 				const project = await client.createProject({
 					title: this.settings.enableInputPrompt ? await inputPrompt(this.app, "Create project", title) : title
@@ -62,7 +62,7 @@ export default class Dida365LinkPlugin extends Plugin {
 				const ctx = EditorContext.of(editor)
 				const client = await DidaClient.of(new PluginDidaSession(this))
 
-				const file = ctx.getCurrentFile()
+				const file = ctx.getFile()
 				const line = ctx.getCurrentLine().stripPrefixSymbols()
 				const selection = ctx.getSelection()
 
@@ -77,7 +77,7 @@ export default class Dida365LinkPlugin extends Plugin {
 
 				})()
 
-				const url = this.app.getObsidianUrl(file)
+				const url = file.url
 
 				const enableInputPrompt = this.settings.enableInputPrompt
 
@@ -107,7 +107,7 @@ export default class Dida365LinkPlugin extends Plugin {
 
 				const project: { id: string, title: string, link: string } =
 					await queryPromot(this.app, (query) => {
-						return allProjects.filter(p => p.title.includes(query))
+						return allProjects.filter((p: { title: string }) => p.title.includes(query))
 					})
 
 				if (this.settings.enableDidaLink) {
@@ -138,7 +138,7 @@ export default class Dida365LinkPlugin extends Plugin {
 				}
 
 				// append link to the task content
-				const url = this.app.getObsidianUrl(ctx.getCurrentFile())
+				const url = ctx.getFile().url
 				task.content = `[Obsidian](${url})\n${task.content}`
 				await didaClient.updateTask(task)
 
