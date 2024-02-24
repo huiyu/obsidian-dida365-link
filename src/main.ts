@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, ToggleComponent } from 'obsidian';
+import { App, Editor, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { DidaClient, DidaSession } from './dida365'
 import { EditorContext, EditorText } from './editor-support'
 import { queryPromot, inputPrompt } from './prompt'
@@ -40,11 +40,9 @@ export default class Dida365LinkPlugin extends Plugin {
 				const ctx = EditorContext.of(editor)
 				const client = await DidaClient.of(new PluginDidaSession(this))
 
-				const title = ctx.getFile().basename
-
-				const project = await client.createProject({
-					title: this.settings.enableInputPrompt ? await inputPrompt(this.app, "Create project", title) : title
-				})
+				const filename = ctx.getFile().basename
+				const title = this.settings.enableInputPrompt ? await inputPrompt(this.app, "Project Title", filename) : filename
+				const project = await client.createProject({ title: title })
 
 				if (this.settings.enableDidaLink) {
 					await this.createProjectLink(project.link, ctx)
@@ -66,24 +64,27 @@ export default class Dida365LinkPlugin extends Plugin {
 				const line = ctx.getCurrentLine().stripPrefixSymbols()
 				const selection = ctx.getSelection()
 
-				const title = (() => {
-					if (!selection.isEmpty()) {
-						return selection.text
-					} else if (!line.isEmpty()) {
-						return line.text
-					} else {
-						return file.basename
-					}
-
-				})()
-
-				const url = file.url
-
 				const enableInputPrompt = this.settings.enableInputPrompt
 
+				// resolve title
+				const title = await (async () => {
+					var t = file.basename
+					if (!selection.isEmpty()) {
+						t = selection.text
+					} else if (!line.isEmpty()) {
+						t = line.text
+					}
+
+					if (enableInputPrompt) {
+						return await inputPrompt(this.app, "Task Title", t)
+					} else {
+						return t
+					}
+				})()
+
 				const task = await client.createTask({
-					title: enableInputPrompt ? await inputPrompt(this.app, "Task Name", title) : title,
-					content: `[Obsidian](${url})`,
+					title: title,
+					content: `[Obsidian](${file.url})`,
 					tags: ["Obsidian"],
 				})
 
@@ -100,15 +101,10 @@ export default class Dida365LinkPlugin extends Plugin {
 			name: "Link project",
 			editorCallback: async (editor: Editor, _) => {
 				const ctx = EditorContext.of(editor)
+				const client = await DidaClient.of(new PluginDidaSession(this))
 
-				const didaClient = await DidaClient.of(new PluginDidaSession(this))
-
-				const allProjects = await didaClient.listProjects()
-
-				const project: { id: string, title: string, link: string } =
-					await queryPromot(this.app, (query) => {
-						return allProjects.filter((p: { title: string }) => p.title.includes(query))
-					})
+				const projects = await client.listProjects()
+				const project = await queryPromot(this.app, async (query) => { return projects.filter((p) => p.title.includes(query)) })
 
 				if (this.settings.enableDidaLink) {
 					await this.createProjectLink(project.link, ctx)
@@ -123,12 +119,10 @@ export default class Dida365LinkPlugin extends Plugin {
 			id: "dida365-link-task",
 			name: "Link task",
 			editorCallback: async (editor: Editor, _) => {
-
 				const ctx = EditorContext.of(editor)
-				const didaClient = await DidaClient.of(new PluginDidaSession(this))
+				const client = await DidaClient.of(new PluginDidaSession(this))
 
-				const task: { id: string, title: string, tags: string[], content: string, projectId: string, link: string }
-					= await queryPromot(this.app, (query) => { return didaClient.searchTasks(query) })
+				const task = await queryPromot(this.app, async (query) => { return await client.searchTasks(query) })
 
 				// update tags
 				if (task.tags === undefined) {
@@ -140,7 +134,7 @@ export default class Dida365LinkPlugin extends Plugin {
 				// append link to the task content
 				const url = ctx.getFile().url
 				task.content = `[Obsidian](${url})\n${task.content}`
-				await didaClient.updateTask(task)
+				await client.updateTask(task)
 
 				if (this.settings.enableDidaLink) {
 					await this.createTaskLink(task.link, ctx.getSelection(), ctx.getCurrentLine(), ctx)

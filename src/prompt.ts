@@ -30,11 +30,7 @@ class GeneralQueryModal<T extends { title: string }> extends SuggestModal<T> {
 	}
 
 	getSuggestions(query: string): Promise<T[]> {
-		if (isBlankString(query)) {
-			return Promise.resolve([]);
-		} else {
-			return this.suggest(query);
-		}
+		return this.suggest(query);
 	}
 
 	onChooseSuggestion(item: T, evt: MouseEvent | KeyboardEvent): void {

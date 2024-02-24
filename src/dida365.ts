@@ -12,6 +12,21 @@ export interface DidaSession {
 	save(): Promise<void>;
 }
 
+export interface DidaTask {
+	id: string;
+	title: string;
+	content: string;
+	tags: string[];
+	projectId: string;
+	link: string;
+}
+
+export interface DidaProject {
+	id: string;
+	title: string;
+	link: string;
+}
+
 export class DidaClient {
 
 	session: DidaSession
@@ -30,7 +45,7 @@ export class DidaClient {
 		return client
 	}
 
-	private async login() {
+	private async login(): Promise<void> {
 		const req = {
 			username: this.session.username,
 			password: this.session.password
@@ -50,7 +65,7 @@ export class DidaClient {
 		await this.session.save()
 	}
 
-	async createProject(project: { title: string }) {
+	async createProject(project: { title: string }): Promise<DidaProject> {
 		const resp = await this.retryRequestUrl({
 			url: "https://api.dida365.com/api/v2/batch/project",
 			method: "POST",
@@ -78,7 +93,7 @@ export class DidaClient {
 	}
 
 
-	async getInboxProjectId() {
+	async getInboxProject(): Promise<DidaProject> {
 		const resp = await this.retryRequestUrl({
 			url: "https://api.dida365.com/api/v2/user/preferences/settings?includeWeb=true",
 			method: "GET",
@@ -89,10 +104,14 @@ export class DidaClient {
 			}
 		})
 
-		return resp.json.defaultProjectId
+		return {
+			title: "Inbox",
+			id: resp.json.defaultProjectId,
+			link: "https://dida365.com/webapp/#p/inbox/tasks",
+		}
 	}
 
-	async listProjects() {
+	async listProjects(): Promise<DidaProject[]> {
 		const resp = await this.retryRequestUrl({
 			url: "https://api.dida365.com/api/v2/projects",
 			method: "GET",
@@ -103,20 +122,23 @@ export class DidaClient {
 			}
 		})
 
-		return resp.json.map((item: { id: string, name: string }) => ({ id: item.id, title: item.name, link: `https://dida365.com/webapp/#p/${item.id}/tasks` }))
+		return resp.json.map((item: { id: string, name: string }) =>
+		({
+			id: item.id,
+			title: item.name,
+			link: `https://dida365.com/webapp/#p/${item.id}/tasks`
+		}))
 	}
 
-	async createTask(task: { title: string, tags: string[], content?: string, projectId?: string }) {
+	async createTask(task: { title: string, tags: string[], content?: string, projectId?: string }): Promise<DidaTask> {
 		const req = {
 			add: [{
 				content: task.content,
 				title: task.title,
 				tags: task.tags,
-				projectId: task.projectId,
+				projectId: task.projectId, // if not set, will be added to inbox
 			}]
 		}
-
-		console.log(task)
 
 		const resp = await this.retryRequestUrl({
 			url: "https://api.dida365.com/api/v2/batch/task",
@@ -136,14 +158,14 @@ export class DidaClient {
 		return {
 			id: id,
 			title: task.title,
-			content: task.content,
+			content: task.content || "",
 			tags: task.tags,
 			link: link,
-			projectId: task.projectId,
+			projectId: task.projectId || (await this.getInboxProject()).id,
 		}
 	}
 
-	async updateTask(task: { id: string, title: string, tags: string[], content: string, projectId: string }) {
+	async updateTask(task: { id: string, title: string, tags: string[], content: string, projectId: string }): Promise<DidaTask> {
 		const req = {
 			update: [{
 				id: task.id,
@@ -165,11 +187,13 @@ export class DidaClient {
 			body: JSON.stringify(req)
 		})
 
-		return task;
+		const link = this.getTaskUrl({ taskId: task.id, projectId: task.projectId })
+
+		return { ...task, ...{ link: link } };
 	}
 
 
-	async searchTasks(keyword: string) {
+	async searchTasks(keyword: string): Promise<DidaTask[]> {
 		const resp = await this.retryRequestUrl({
 			url: `https://api.dida365.com/api/v2/search/task?keywords=${keyword}&status=0`,
 			method: "GET",
@@ -192,7 +216,7 @@ export class DidaClient {
 	}
 
 
-	private getTaskUrl(task: { taskId: string, projectId?: string }) {
+	private getTaskUrl(task: { taskId: string, projectId?: string }): string {
 		if (util.isBlankString(task.projectId)) {
 			return `https://dida365.com/webapp/#p/inbox/tasks/${task.taskId}`
 		} else {
