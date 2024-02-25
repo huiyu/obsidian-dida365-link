@@ -1,4 +1,4 @@
-import { App, Editor, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, ButtonComponent, Editor, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { DidaClient, DidaSession } from './dida365'
 import { EditorContext, EditorText } from './editor-support'
 import { queryPromot, inputPrompt } from './prompt'
@@ -8,11 +8,11 @@ interface Dida365LinkPluginSettings {
 	password: string;
 	token: string;
 	enableInputPrompt: boolean;
-	enableDidaLink: boolean;
-	enableFrontMatterToDidaProjectLink: boolean;
+	enableDidaTaskLink: boolean;
 	enableSelectionToDidaTaskLink: boolean;
 	enableLineToDidaTaskLink: boolean;
 	enableFrontMatterToDidaTaskLink: boolean;
+	enableFrontMatterToDidaProjectLink: boolean;
 }
 
 const DEFAULT_SETTINGS: Dida365LinkPluginSettings = {
@@ -20,11 +20,11 @@ const DEFAULT_SETTINGS: Dida365LinkPluginSettings = {
 	password: 'password',
 	token: '',
 	enableInputPrompt: false,
-	enableDidaLink: false,
-	enableFrontMatterToDidaProjectLink: false,
+	enableDidaTaskLink: false,
 	enableSelectionToDidaTaskLink: false,
 	enableLineToDidaTaskLink: false,
 	enableFrontMatterToDidaTaskLink: false,
+	enableFrontMatterToDidaProjectLink: false,
 }
 
 export default class Dida365LinkPlugin extends Plugin {
@@ -44,7 +44,7 @@ export default class Dida365LinkPlugin extends Plugin {
 				const title = this.settings.enableInputPrompt ? await inputPrompt(this.app, "Project Title", filename) : filename
 				const project = await client.createProject({ title: title })
 
-				if (this.settings.enableDidaLink) {
+				if (this.settings.enableDidaTaskLink) {
 					await this.createProjectLink(project.link, ctx)
 				}
 
@@ -88,7 +88,7 @@ export default class Dida365LinkPlugin extends Plugin {
 					tags: ["Obsidian"],
 				})
 
-				if (this.settings.enableDidaLink) {
+				if (this.settings.enableDidaTaskLink) {
 					await this.createTaskLink(task.link, selection, line, ctx);
 				}
 
@@ -106,7 +106,7 @@ export default class Dida365LinkPlugin extends Plugin {
 				const projects = await client.listProjects()
 				const project = await queryPromot(this.app, async (query) => { return projects.filter((p) => p.title.includes(query)) })
 
-				if (this.settings.enableDidaLink) {
+				if (this.settings.enableDidaTaskLink) {
 					await this.createProjectLink(project.link, ctx)
 				}
 
@@ -136,7 +136,7 @@ export default class Dida365LinkPlugin extends Plugin {
 				task.content = `[Obsidian](${url})\n${task.content}`
 				await client.updateTask(task)
 
-				if (this.settings.enableDidaLink) {
+				if (this.settings.enableDidaTaskLink) {
 					await this.createTaskLink(task.link, ctx.getSelection(), ctx.getCurrentLine(), ctx)
 				}
 
@@ -219,6 +219,22 @@ class Dida365PluginSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
+
+		new Setting(containerEl)
+			.addButton((button: ButtonComponent) => {
+				button
+					.setButtonText("Verify Credentials")
+					.onClick(async () => {
+						try {
+							await DidaClient.verify(this.plugin.settings.username, this.plugin.settings.password)
+							new Notice("Verify credentials success!")
+						} catch (e) {
+							new Notice("Verify credentials failed: " + e.message)
+
+						}
+					})
+			})
+
 		this.containerEl.createEl('h2', { text: 'General' })
 
 		new Setting(containerEl)
@@ -231,16 +247,7 @@ class Dida365PluginSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
-		new Setting(containerEl)
-			.setName('Enable Dida365 link')
-			.setDesc('If enabled, the plugin will attempt to create a link to Dida365 depends on the settings specified below.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.enableDidaLink)
-				.onChange(async (value) => {
-					this.plugin.settings.enableDidaLink = value;
-					await this.plugin.saveSettings();
-				}));
-
+		this.containerEl.createEl('h2', { text: 'Project' })
 		new Setting(containerEl)
 			.setName("Add Dida365 project link to frontmatter")
 			.setDesc("If enabled, the plugin will add a link to the Dida365 project in the frontmatter of the note.")
@@ -251,36 +258,54 @@ class Dida365PluginSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
+		this.containerEl.createEl('h2', { text: 'Task' })
 		new Setting(containerEl)
-			.setName('Enable transform selection to Dida365 task link')
-			.setDesc('If enabled, the plugin will trasform current selection to a link to Dida365 task.')
+			.setName('Enable Dida365 task link')
+			.setDesc('If enabled, the plugin will attempt to create a link to Dida365 task depends on the settings specified below.')
 			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.enableSelectionToDidaTaskLink)
+				.setValue(this.plugin.settings.enableDidaTaskLink)
 				.onChange(async (value) => {
-					this.plugin.settings.enableSelectionToDidaTaskLink = value;
+					this.plugin.settings.enableDidaTaskLink = value;
 					await this.plugin.saveSettings();
+					// force refresh
+					this.display()
 				}));
 
-		new Setting(containerEl)
-			.setName('Enable transform line to Dida365 link')
-			.setDesc('If enabled, the plugin transforms the complete line to a link to Dida365 task.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.enableLineToDidaTaskLink)
-				.onChange(async (value) => {
-					this.plugin.settings.enableLineToDidaTaskLink = value;
-					await this.plugin.saveSettings();
-				}));
+		if (this.plugin.settings.enableDidaTaskLink) {
+
+			new Setting(containerEl)
+				.setName('Enable transform selection to Dida365 task link')
+				.setDesc('If enabled, the plugin will trasform current selection to a link to Dida365 task.')
+				.addToggle(toggle => toggle
+					.setValue(this.plugin.settings.enableSelectionToDidaTaskLink)
+					.onChange(async (value) => {
+						this.plugin.settings.enableSelectionToDidaTaskLink = value;
+						await this.plugin.saveSettings();
+					}));
+
+			new Setting(containerEl)
+				.setName('Enable transform line to Dida365 link')
+				.setDesc('If enabled, the plugin transforms the complete line to a link to Dida365 task.')
+				.addToggle(toggle => toggle
+					.setValue(this.plugin.settings.enableLineToDidaTaskLink)
+					.onChange(async (value) => {
+						this.plugin.settings.enableLineToDidaTaskLink = value;
+						await this.plugin.saveSettings();
+					}));
 
 
-		new Setting(containerEl)
-			.setName("Add Dida365 task link to frontmatter")
-			.setDesc("If enabled, the plugin will add a link to the Dida365 task in the frontmatter of the note.")
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.enableFrontMatterToDidaTaskLink)
-				.onChange(async (value) => {
-					this.plugin.settings.enableFrontMatterToDidaTaskLink = value;
-					await this.plugin.saveSettings();
-				}));
+			new Setting(containerEl)
+				.setName("Add Dida365 task link to frontmatter")
+				.setDesc("If enabled, the plugin will add a link to the Dida365 task in the frontmatter of the note.")
+				.addToggle(toggle => toggle
+					.setValue(this.plugin.settings.enableFrontMatterToDidaTaskLink)
+					.onChange(async (value) => {
+						this.plugin.settings.enableFrontMatterToDidaTaskLink = value;
+						await this.plugin.saveSettings();
+					}));
+		}
+
+
 	}
 }
 

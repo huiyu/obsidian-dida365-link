@@ -29,10 +29,29 @@ export interface DidaProject {
 
 export class DidaClient {
 
+
 	session: DidaSession
 
 	private constructor(session: DidaSession) {
 		this.session = session
+	}
+
+	public static async verify(username: string, password: string): Promise<string> {
+		const req = {
+			username: username,
+			password: password
+		}
+
+		const resp = await requestUrl({
+			url: "https://api.dida365.com/api/v2/user/signon?wc=true&remember=true",
+			method: "POST",
+			body: JSON.stringify(req),
+			headers: {
+				"Content-Type": "application/json",
+			},
+		})
+
+		return resp.json.token
 	}
 
 	public static async of(session: DidaSession) {
@@ -46,22 +65,7 @@ export class DidaClient {
 	}
 
 	private async login(): Promise<void> {
-		const req = {
-			username: this.session.username,
-			password: this.session.password
-		}
-
-		const resp = await requestUrl({
-			url: "https://api.dida365.com/api/v2/user/signon?wc=true&remember=true",
-			method: "POST",
-			body: JSON.stringify(req),
-			headers: {
-				"Content-Type": "application/json",
-			},
-		})
-
-		this.session.token = resp.json.token
-
+		this.session.token = await DidaClient.verify(this.session.username, this.session.password)
 		await this.session.save()
 	}
 
