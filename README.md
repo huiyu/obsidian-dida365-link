@@ -12,14 +12,24 @@ Go to the settings and add your **Dida365** username and password.
 - `Dida365 Link: Link task` will link a Dida365 task from the current selected text or line the Obsidian note and add links between the tow for easy navigation.
 - `Dida365 Link: Link project` will link a Dida365 project from the current note.
 
-## Configuration
+## More Configuration
 
-- Enable input prompt: If enabled, the plugin will prompt you for input when creating a project/task.
-- Enable Dida365 link: If enabled, the plugin will attempt to create a link to Dida365 depends on the settings specified below.
-- Add Dida365 project link to frontmatter: If enabled, the plugin will add a link to the Dida365 project in the frontmatter of the note.
-- Enable transform selection to Dida365 task link: If enabled, the plugin will trasform current selection to a link to Dida365 task.
-- Enable transform line to Dida365 link: If enabled, the plugin transforms the complete line to a link to Dida365 task.
-- Add Dida365 task link to frontmatter: If enabled, the plugin will add a link to the Dida365 task in the frontmatter of the note.
+### General
+
+- `Enable input prompt`: If enabled, the plugin will prompt you for input when creating a project/task.
+
+### Task
+
+- `Enable Dida365 task link`: If enabled, the plugin will attempt to create a link to Dida365 depends on the settings specified below.
+- `Enable transform selection to Dida365 task link`: If enabled, the plugin will trasform current selection to a link to Dida365 task.
+- `Enable transform line to Dida365 link`: If enabled, the plugin transforms the complete line to a link to Dida365 task.
+- `Add Dida365 task link to frontmatter`: If enabled, the plugin will add a link to the Dida365 task in the frontmatter of the note.
+
+### Project
+
+- `Add Dida365 project link to frontmatter`: If enabled, the plugin will add a link to the Dida365 project in the frontmatter of the note.
+
+> This feature denpends on [MetaEdit](https://github.com/chhoumann/MetaEdit) plugin.
 
 ## Thanks & Attribution
 
