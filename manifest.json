@@ -1,7 +1,7 @@
 {
 	"id": "obsidian-dida365-link",
 	"name": "Dida365 Link",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"minAppVersion": "0.15.0",
 	"description": "Create Dida365 tasks and projects from Obsidian with bidirectional links.",
 	"author": "Yu Hui",

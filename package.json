@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-dida365-link",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Create Dida 365 projects and tasks from Obsidian.",
 	"main": "main.js",
 	"scripts": {
