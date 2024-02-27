@@ -2,6 +2,7 @@ import { App, ButtonComponent, Editor, Notice, Plugin, PluginSettingTab, Setting
 import { DidaClient, DidaSession } from './dida365'
 import { EditorContext, EditorText } from './editor-support'
 import { queryPromot, inputPrompt } from './prompt'
+import { includeIgnoreCase } from './util'
 
 interface Dida365LinkPluginSettings {
 	username: string;
@@ -104,7 +105,7 @@ export default class Dida365LinkPlugin extends Plugin {
 				const client = await DidaClient.of(new PluginDidaSession(this))
 
 				const projects = await client.listProjects()
-				const project = await queryPromot(this.app, async (query) => { return projects.filter((p) => p.title.includes(query)) })
+				const project = await queryPromot(this.app, async (query) => { return projects.filter(p => includeIgnoreCase(p.title, query)) })
 
 				if (this.settings.enableDidaTaskLink) {
 					await this.createProjectLink(project.link, ctx)
@@ -123,7 +124,7 @@ export default class Dida365LinkPlugin extends Plugin {
 				const client = await DidaClient.of(new PluginDidaSession(this))
 
 				const tasks = await client.listTasks();
-				const task = await queryPromot(this.app, async (query) => { return tasks.filter((t) => t.title.includes(query)) })
+				const task = await queryPromot(this.app, async (query) => { return tasks.filter((t) => includeIgnoreCase(t.title, query)) })
 
 				// update tags
 				if (task.tags === undefined) {

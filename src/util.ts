@@ -14,3 +14,8 @@ export function isBlankString(str: string | null | undefined): boolean {
 
 	return false;
 }
+
+export function includeIgnoreCase(source: string, search: string): boolean {
+	console.log(source, search)
+	return source.toLowerCase().includes(search.toLowerCase());
+}
