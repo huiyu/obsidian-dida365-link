@@ -122,7 +122,8 @@ export default class Dida365LinkPlugin extends Plugin {
 				const ctx = EditorContext.of(editor)
 				const client = await DidaClient.of(new PluginDidaSession(this))
 
-				const task = await queryPromot(this.app, async (query) => { return await client.searchTasks(query) })
+				const tasks = await client.listTasks();
+				const task = await queryPromot(this.app, async (query) => { return tasks.filter((t) => t.title.includes(query)) })
 
 				// update tags
 				if (task.tags === undefined) {

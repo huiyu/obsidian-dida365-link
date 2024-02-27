@@ -196,10 +196,10 @@ export class DidaClient {
 		return { ...task, ...{ link: link } };
 	}
 
+	async listTasks(): Promise<DidaTask[]> {
 
-	async searchTasks(keyword: string): Promise<DidaTask[]> {
 		const resp = await this.retryRequestUrl({
-			url: `https://api.dida365.com/api/v2/search/task?keywords=${keyword}&status=0`,
+			url: "https://api.dida365.com/api/v2/batch/check/0",
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",
@@ -208,7 +208,7 @@ export class DidaClient {
 			}
 		})
 
-		return resp.json.map((item: { id: string; title: string; content: string; tags: string[]; projectId: string, link: string; }) =>
+		return resp.json.syncTaskBean.update.map((item: { id: string; title: string; content: string; tags: string[]; projectId: string; }) =>
 		({
 			id: item.id,
 			title: item.title,
@@ -218,7 +218,6 @@ export class DidaClient {
 			link: this.getTaskUrl({ taskId: item.id, projectId: item.projectId }),
 		}))
 	}
-
 
 	private getTaskUrl(task: { taskId: string, projectId?: string }): string {
 		if (util.isBlankString(task.projectId)) {
